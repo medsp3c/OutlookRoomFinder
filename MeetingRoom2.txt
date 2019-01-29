@@ -1,0 +1,129 @@
+Attribute VB_Name = "Module1"
+Function MeetingRooms(requiredDate As Single, requiredTime As Single, Duration As Single)
+
+ Dim colAL As Outlook.AddressLists
+ Dim oAL As Outlook.AddressList
+ Dim colAE As Outlook.AddressEntries
+ Dim oAE As Outlook.AddressEntry
+ Dim oExUser As Outlook.ExchangeUser
+
+ Dim requiredDT As Date
+ Dim room As String
+ Dim allFreeBusy As Single
+ 
+room = "Rooms available:" & vbCrLf
+
+requiredDT = DateAdd("d", requiredDate, Date)
+
+Intervals = Duration / 0.5
+
+
+Const SlotLength = 30
+
+Set colAL = Application.Session.AddressLists
+
+
+'For Each oAL In colAL
+    
+     'Address list is an Exchange Global Address List
+    
+     'If oAL.Name = "All Rooms" Then
+        Set oAL = colAL("All Rooms") ' straight to rooms address list
+        Set colAE = oAL.AddressEntries
+    
+         For Each oAE In colAE
+        
+                 If InStr(oAE.Name, "SG-SIN-MBFCT1-L") > 0 Then 'only for those in MBFC T1
+                     FreeBusy = oAE.GetFreeBusy(requiredDT, SlotLength)
+                     allFreeBusy = 0
+                    'The current 30mins and the following 30mins are free
+                    For i = 1 To Intervals
+                        allFreeBusy = allFreeBusy + CLng(Mid(FreeBusy, (requiredTime * 2) + i, 1))
+                    Next i
+                    
+                    If allFreeBusy = 0 Then
+                        DateBusySlot = DateAdd("n", 2 * requiredTime * SlotLength, requiredDT)
+                        room = room & vbCrLf & oAE.Name & " :" & Format$(DateBusySlot, "dddd, mmm d yyyy hh:mm AMPM")
+
+                    End If
+
+                 End If
+    
+        Next
+
+    'End If
+
+ 'Next
+ 
+ MeetingRooms = room
+
+End Function
+
+
+Private Function splitString(text As String, delimiter As String, Position As Integer)
+
+t0 = 1
+
+'artificial padding
+text = text & "-"
+
+For i = 0 To Position
+    t1 = InStr(t0, text, delimiter)
+    
+    If i = Position Then
+        splitString = Mid(text, t0, t1 - t0)
+    End If
+    t0 = t1 + 1
+Next i
+
+End Function
+
+
+
+Private Function getTime()
+
+test = InputBox("Please enter time here in HH:MM format.")
+date_out = DateAdd("h", Val(Left(test, 2)), Date)
+date_out = DateAdd("n", Val(Right(test, 2)), Date)
+getTime = date_out
+End Function
+
+
+
+Public Sub Find_Room()
+
+Dim requiredTime As Single
+Dim requiredDate As Single
+Dim Duration As Single
+
+Dim olNS As Outlook.NameSpace
+Dim oMail As Outlook.MailItem
+
+Set olNS = Application.GetNamespace("MAPI")
+Set oMeet = Application.CreateItem(olAppointmentItem)
+
+oMeet.MeetingStatus = olMeeting
+'use first account in list
+    'oMeet.SendUsingAccount = olNS.Accounts.Item(1)
+    oMeet.Display
+
+requiredDate = Val(InputBox("Please enter Day required." & vbCrLf & "Eg Today - 0" & vbCrLf & "Tomorrow - 1" & vbCrLf & "Same Day Next Week - 7")) ' input for days ahead
+requiredTime = Val(InputBox("Please enter time here in HH.h format." & vbCrLf & "Eg - 2:30pm == 14.5")) ' input for hours ahead
+Duration = Val(InputBox("Please enter duration required in 30min interval" & vbCrLf & "Eg - 1hr30mins == 1.5")) ' input for hours ahead
+
+'Setting meeting time
+oMeet.Start = DateAdd("n", requiredTime * 60, DateAdd("d", requiredDate, Date))
+oMeet.Duration = 60 * Duration
+
+'Retrieving rooms
+oMeet.Body = MeetingRooms(requiredDate, requiredTime, Duration)
+
+
+
+MsgBox "Done!"
+Set olNS = Nothing
+
+
+End Sub
+
+
